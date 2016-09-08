@@ -5,6 +5,7 @@
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import re
 from urllib.request import urlopen, HTTPError
 from urllib.parse import urlencode, quote
 import xmltodict
@@ -92,6 +93,8 @@ def get_bgg_data_with_id(game_id):
         maxplaytime = game_dict.get('maxplaytime', default)
         recommendedage = game_dict.get('age', default)
         description = game_dict.get('description', default)
+        description = re.sub('<[^<]+?>', ' ', description)
+        description = re.sub('&[a-z]*;', ' ', description)
         title = game_dict.get('name', default)
 
         try:
