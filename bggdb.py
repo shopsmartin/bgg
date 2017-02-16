@@ -1,11 +1,11 @@
-from sqlite3 import connect
-
-
-conn = connect('game.db')
-c = conn.cursor()
-
+#from sqlite3 import connect
+from psycopg2 import connect
+connect_string="dbname='boardgame' user='postgres' host='localhost'"
 
 def create_table():
+    connect_string="dbname='boardgame' user='postgres' host='localhost'"
+    conn = connect(connect_string)
+    c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS games
     (gameid INTEGER PRIMARY KEY,
     title TEXT,
@@ -13,15 +13,23 @@ def create_table():
     players TEXT,
     playtime TEXT,
     age INTEGER,
-    description TEXT)''')
+    description TEXT,
+    mechanics TEXT,
+    publisher TEXT)''')
+
+    conn.commit()
+    c.close()
+    conn.close()
 
 
 def data_entry(dict):
-    conn = connect('game.db')
+    connect_string="dbname='boardgame' user='postgres' host='localhost'"
+    conn = connect(connect_string)
     c = conn.cursor()
     game_field_list = [dict.get('id'), dict.get('title'), dict.get('yearpublished'),
                        dict.get('players'), dict.get('playtime'), dict.get('age'),
-                       dict.get('description')]
+                       dict.get('description'), str(dict.get('mechanics', 'None')).strip('[]').replace(',', ' '),
+                       dict.get('publisher')]
 
     c.execute("SELECT gameid FROM {tn} WHERE {idf}={my_id}".format(
         tn='games', idf='gameid', my_id=game_field_list[0]))
@@ -29,12 +37,13 @@ def data_entry(dict):
     if id_exists:
         print('Unique ID: {} already in games database'.format(id_exists))
     else:
-        print('{} does not exist, entered into database'.format(game_field_list[0]))
+        print('{} does not exist in database'.format(game_field_list[0]))
         c.execute('''INSERT INTO
                       games
-                      (gameid, title, published, players, playtime, age, description)
+                      (gameid, title, published, players, playtime, age, description, mechanics, publisher)
                       VALUES
-                      (?,?,?,?,?,?,?)''', game_field_list)
+                      (%s, %s, %s, %s, %s, %s, %s, %s, %s);''', (tuple(game_field_list)))
+        print('entered into database')
         conn.commit()
         c.close()
         conn.close()

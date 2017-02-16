@@ -1,25 +1,26 @@
-﻿__author__ = 'Shopsmartin'
-#program need to have web site handle for API
-#take params
-#get params from user - title
+# written 2016
+"""Module for accessing boardgamegeek's API
+"""
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import re
 from urllib.request import urlopen, HTTPError
-from urllib.parse import urlencode, quote
+from urllib.parse import quote
 import xmltodict
+import re
+from codecs import encode
 from time import sleep
 from sys import argv, exit
 from pprint import pprint
-from bgg.bggdb import data_entry
+from bgg.bggdb import data_entry, create_table
 
 
 def get_bgg_data(game=None):
+    """function takes a string of a game title or game id """
     if isinstance(game, str):
         url = "http://www.boardgamegeek.com/xmlapi/search?"
         game = 'search=' + quote(game, safe='')
-        url = url + game
+        url += game
         try:
             request = urlopen(url)
             raw_xml = request.read()
@@ -34,6 +35,7 @@ def get_bgg_data(game=None):
 
 
 def get_game_id(raw_xml):
+    """ Function takes xml from the API and loads it to find the ID """
     game = {}
     game_list = []
     default = 'none'
@@ -59,7 +61,7 @@ def get_game_id(raw_xml):
                 pass
 
             #might need an error process here
-
+            #print out the games to choose the matching title
 
             try:
                 print(game_id, title, year_published)
@@ -74,9 +76,9 @@ def get_game_id(raw_xml):
         return game_list
 
 
-
 def get_bgg_data_with_id(game_id):
-    #open xml with game id and url open
+    """ This function uses the game ID to access the API and construct a dict"""
+    # open xml with game id and url open
     game_id = str(game_id)
     default = []
     mechanics = []
@@ -84,50 +86,59 @@ def get_bgg_data_with_id(game_id):
     print(url)
     try:
         data_xml = urlopen(url)
-        data_dict = xmltodict.parse(data_xml)
+        data_dict = xmltodict.parse(data_xml, dict_constructor=dict)
         game_dict = data_dict['boardgames']['boardgame']
         yearpublished = game_dict.get('yearpublished', default)
         minplayers = game_dict.get('minplayers', default)
         maxplayers = game_dict.get('maxplayers', default)
         minplaytime = game_dict.get('minplaytime', default)
         maxplaytime = game_dict.get('maxplaytime', default)
+        publisher = game_dict.get('boardgamepublisher', default)
         recommendedage = game_dict.get('age', default)
         description = game_dict.get('description', default)
         description = re.sub('<[^<]+?>', ' ', description)
         description = re.sub('&[a-z]*;', ' ', description)
+        description = encode(description, "ascii", errors="ignore")
         title = game_dict.get('name', default)
 
         try:
-            title = title[1].get('#text', default)
+
+            title = title[0].get('#text', default)
         except KeyError:
-            dict(title)
+            # dict(title)
             title = title.get('#text', default)
             pass
 
+        # try:
+        #     publisher = publisher[0].get('#text', default)
+        # except KeyError:
+        #     publisher = publisher['#text']
+        publisher = [x['#text'] for x in publisher]
+        publisher = str(publisher).strip('[]').replace(',', ' ')
+
+
+
         game = {
             'yearpublished': yearpublished,
+            'publisher': publisher,
             'players': '{}-{}'.format(minplayers, maxplayers),
             'playtime': '{}-{}'.format(minplaytime, maxplaytime),
             'age': recommendedage,
-            'description': description,
+            'description': description.decode("utf-8"),
             'title': title,
             'id': game_id
         }
 
-        #print(u"Game: {}, age: {}, players: {} - {}, published: {}, time: {} - {} minutes, description: {}".format(title, recommendedage, minplayers, maxplayers, yearpublished, minplaytime, maxplaytime, description))
         for k in game_dict.get('boardgamemechanic', default):
             if isinstance(k, str):
                 items = list(game_dict.get('boardgamemechanic').items())
-                #print('mechanic: ', items[1][1])
                 if items[1][1] not in mechanics:
                     mechanics.append(items[1][1])
                 else:
                     pass
                 game['mechanics'] = mechanics
-                #k = dict(k)
-                #print('mechanic: ', k.get('#text', k))
+
             else:
-                #print('mechanic: ', k.get('#text', k))
                 mechanics.append(k.get('#text', k))
                 game['mechanics'] = mechanics
 
@@ -150,15 +161,14 @@ def get_bgg_data_with_id(game_id):
 def main(argv):
     if argv.isdigit():
         x = get_bgg_data_with_id(argv)
+        create_table()
         data_entry(x)
     else:
         listofgames = get_bgg_data(game=argv)
         game_list = get_game_id(listofgames)
 
-        for gid in game_list:
-            x = get_bgg_data_with_id(gid.get('game_id', None))
-
-            data_entry(x)
+        # for gid in game_list:
+        #     x = get_bgg_data_with_id(gid.get('game_id', None))
 
     exit()
 
